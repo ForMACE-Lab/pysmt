@@ -16,10 +16,10 @@
 #   limitations under the License.
 #
 from pysmt.shortcuts import *
-from pysmt.typing import REAL, INT
+from pysmt.typing import ArrayType, BVType, REAL, INT
 from pysmt.test import TestCase, skipIfSolverNotAvailable, main
 from pysmt.exceptions import NoSolverAvailableError
-from pysmt.logics import UFLIRA
+from pysmt.logics import QF_ABV, UFLIRA
 
 
 class TestInterpolation(TestCase):
@@ -49,6 +49,28 @@ class TestInterpolation(TestCase):
         self._bool_example(itp, False)
         self._real_example(itp, False)
         self._int_example(itp, False)
+
+    @skipIfSolverNotAvailable('msat')
+    def test_array_interpolant_msat(self):
+        """Arrays over bit-vectors interpolate once the eager solver is off.
+
+        The eager bit-blasting BV solver produces no proof, so MathSAT
+        answers "eager bv solver does not support proof generation" while it
+        is in use. Disabling it for every BV-containing logic -- not only for
+        QF_BV -- brings QF_ABV into reach.
+        """
+        array = Symbol("msat_itp_array", ArrayType(BVType(8), BVType(8)))
+        index = Symbol("msat_itp_index", BVType(8))
+        selected = Select(array, index)
+        a = Equals(selected, BV(0, 8))
+        b = Equals(selected, BV(1, 8))
+
+        itp = Interpolator(name='msat', logic=QF_ABV)
+        i = itp.binary_interpolant(a, b)
+
+        self.assertTrue(i is not None)
+        self.assertValid(Implies(a, i), solver_name='msat', logic=QF_ABV)
+        self.assertUnsat(And(i, b), solver_name='msat', logic=QF_ABV)
 
     @skipIfSolverNotAvailable('msat')
     def test_context(self):
