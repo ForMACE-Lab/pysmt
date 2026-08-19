@@ -38,4 +38,7 @@ class CVC5Installer(SolverInstaller):
         SolverInstaller.run_python("-m pip install --upgrade --target=%s cvc5==%s" % (self.bindings_dir, self.solver_version))
 
     def get_installed_version(self):
-        return self.get_installed_version_script(self.bindings_dir, "cvc5")
+        version = self.get_installed_version_script(self.bindings_dir, "cvc5")
+        if version is not None and version.startswith(self.solver_version):
+            return self.solver_version
+        return version
