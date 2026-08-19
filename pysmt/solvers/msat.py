@@ -21,7 +21,10 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union, 
 
 from pysmt.constants import Fraction, is_pysmt_fraction, is_pysmt_integer
 
-from pysmt.logics import Logic, LRA, LIA, QF_UFLIA, QF_UFLRA, QF_BV, PYSMT_QF_LOGICS
+from pysmt.logics import (
+    Logic, LRA, LIA, QF_UFLIA, QF_UFLRA, QF_BV, QF_ABV, PYSMT_QF_LOGICS,
+    get_logic_by_name,
+)
 from pysmt.oracles import get_logic
 
 from pysmt.solvers.dynmsat import MSATLibLoader, MSATCreateEnv, MSATCreateConverter
@@ -1211,7 +1214,11 @@ class MSatInterpolator(Interpolator):
 
     __lib_name__ = "mathsat"
 
-    LOGICS = [QF_UFLIA, QF_UFLRA, QF_BV]
+    # MathSAT interpolates arrays over bit-vectors as well, once its eager
+    # BV solver is disabled for them (see _create_env below). Formulas built
+    # with constant arrays are detected as the stricter "QF_ABV*", so both
+    # spellings are listed.
+    LOGICS = [QF_UFLIA, QF_UFLRA, QF_BV, QF_ABV, get_logic_by_name("QF_ABV*")]
 
     def __init__(self, environment, logic=None):
         Interpolator.__init__(self)
@@ -1249,7 +1256,12 @@ class MSatInterpolator(Interpolator):
 
             cfg = self._msat_lib.msat_create_config()
             self._msat_lib.msat_set_option(cfg, "interpolation", "true")
-            if self.logic == QF_BV:
+            # The eager (bit-blasting) BV solver does not produce the proofs
+            # interpolation needs. That holds for every logic containing
+            # bit-vectors, not only QF_BV: QF_ABV used to fall through this
+            # check and get "eager bv solver does not support proof
+            # generation" back from MathSAT.
+            if self.logic is not None and self.logic.theory.bit_vectors:
                 self._msat_lib.msat_set_option(cfg, "theory.bv.eager", "false")
                 self._msat_lib.msat_set_option(cfg, "theory.eq_propagaion", "false")
             env = self._do_create_env(cfg, self.msat_env())
@@ -1273,6 +1285,15 @@ class MSatInterpolator(Interpolator):
             pysmt_ret = []
             for i in range(1, len(groups)):
                 itp = self._msat_lib.msat_get_interpolant(env, groups[:i])
+                # msat_get_interpolant reports failure by returning
+                # MSAT_ERROR_TERM rather than by raising, and that term wraps
+                # a NULL pointer: passing it to the converter segfaults the
+                # process inside msat_term_arity. MathSAT can prove a query
+                # unsatisfiable and still fail to build an interpolant for
+                # it, so this is reachable and not a defensive check. None is
+                # pySMT's "no interpolant" answer for such a failure.
+                if self._msat_lib.MSAT_ERROR_TERM(itp):
+                    return None
                 f = self.converter.back(itp)
                 pysmt_ret.append(f)
 

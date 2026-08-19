@@ -67,6 +67,28 @@ class TestInterpolation(TestCase):
         self._int_example(itp, False)
 
     @skipIfSolverNotAvailable('msat')
+    def test_array_interpolant_msat(self):
+        """Arrays over bit-vectors interpolate once the eager solver is off.
+
+        The eager bit-blasting BV solver produces no proof, so MathSAT
+        answers "eager bv solver does not support proof generation" while it
+        is in use. Disabling it for every BV-containing logic -- not only for
+        QF_BV -- brings QF_ABV into reach.
+        """
+        array = Symbol("msat_itp_array", ArrayType(BVType(8), BVType(8)))
+        index = Symbol("msat_itp_index", BVType(8))
+        selected = Select(array, index)
+        a = Equals(selected, BV(0, 8))
+        b = Equals(selected, BV(1, 8))
+
+        itp = Interpolator(name='msat', logic=QF_ABV)
+        i = itp.binary_interpolant(a, b)
+
+        self.assertTrue(i is not None)
+        self.assertValid(Implies(a, i), solver_name='msat', logic=QF_ABV)
+        self.assertUnsat(And(i, b), solver_name='msat', logic=QF_ABV)
+
+    @skipIfSolverNotAvailable('msat')
     def test_context(self):
         with Interpolator() as itp:
             self._bool_example(itp, False)
