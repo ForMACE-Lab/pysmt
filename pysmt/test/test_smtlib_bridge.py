@@ -21,13 +21,13 @@ Nothing here needs a solver: these pin the properties the native backends
 rely on when they hand terms to a parser and read them back.
 """
 
-from pysmt.shortcuts import And, Array, BV, Equals, Not, Symbol
+from pysmt.shortcuts import And, Array, BV, Equals, Not, Symbol, is_unsat
 from pysmt.logics import QF_LIA
 from pysmt.solvers._array_rewriter import (ArrayEqualityExpander,
                                            expand_array_equalities)
 from pysmt.solvers._smtlib_bridge import term_to_pysmt, terms_to_pysmt
 from pysmt.environment import get_env
-from pysmt.test import TestCase, main
+from pysmt.test import TestCase, skipIfSolverNotAvailable, main
 from pysmt.typing import ArrayType, BVType, INT
 
 
@@ -54,6 +54,21 @@ class TestNativeTermBridge(TestCase):
         value = formula.arg(1)
         self.assertTrue(value.is_int_constant())
         self.assertEqual(value.constant_value() % (10 ** 20), (10 ** 20) - 1)
+
+    @skipIfSolverNotAvailable('cvc5')
+    def test_arbitrary_precision_numeral_reaches_cvc5(self):
+        """The same numeral has to survive the trip back to a backend."""
+        x = Symbol("huge_integer_x", INT)
+        digits = "9" * 5000
+        formula = term_to_pysmt(
+            "(= huge_integer_x %s)" % digits,
+            QF_LIA,
+            "(declare-fun huge_integer_x () Int)",
+            get_env(),
+            [x],
+        )
+        self.assertTrue(is_unsat(And(formula, Not(formula)),
+                                 solver_name="cvc5", logic=QF_LIA))
 
 
 class TestBatchedTermParsing(TestCase):

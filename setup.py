@@ -28,12 +28,15 @@ The following solvers are supported through native APIs:
 * MathSAT (http://mathsat.fbk.eu/)
 * Z3 (https://github.com/Z3Prover/z3/)
 * cvc5 (https://cvc5.github.io/)
+* Bitwuzla (https://bitwuzla.github.io/)
 * Yices 2 (http://yices.csl.sri.com/)
 * CUDD (http://vlsi.colorado.edu/~fabio/CUDD/)
 * PicoSAT (http://fmv.jku.at/picosat/)
 * Boolector (http://fmv.jku.at/boolector/)
 
-Additionally, you can use any SMT-LIB 2 compliant solver.
+SMTInterpol is supported through its SMT-LIB subprocess interface, including
+Craig and sequence interpolation. Additionally, you can use any SMT-LIB 2
+compliant solver.
 
 PySMT assumes that the python bindings for the SMT Solver are installed and
 accessible from your PYTHONPATH.

@@ -48,8 +48,9 @@ from pysmt.utils import assert_not_none
 
 SOLVER_TYPES = ['Solver', 'Solver supporting Unsat Cores',
                 'Quantifier Eliminator', 'Interpolator', 'Optimizer']
-DEFAULT_PREFERENCES = {'Solver': ['msat', 'optimsat', 'z3', 'cvc5', 'yices', 'btor',
-                                  'picosat', 'bdd', 'cvc4'],
+DEFAULT_PREFERENCES = {'Solver': ['msat', 'optimsat', 'z3', 'cvc5', 'bitwuzla',
+                                  'smtinterpol', 'yices', 'btor', 'picosat',
+                                  'bdd', 'cvc4'],
                        'Solver supporting Unsat Cores': ['optimsat', 'msat', 'z3', 'cvc5',
                                                          'yices', 'btor', 'picosat', 'bdd', 'cvc4'],
                        'Quantifier Eliminator': ['z3', 'msat_fm', 'msat_lw',
@@ -59,7 +60,8 @@ DEFAULT_PREFERENCES = {'Solver': ['msat', 'optimsat', 'z3', 'cvc5', 'yices', 'bt
                                      'msat_incr', 'yices_incr', 'z3_incr',
                                      'msat_sua', 'yices_sua', 'z3_sua'
                                     ],
-                       'Interpolator': ['msat', 'optimsat', 'z3']}
+                       'Interpolator': ['msat', 'optimsat', 'cvc5', 'bitwuzla',
+                                        'smtinterpol', 'z3']}
 DEFAULT_LOGIC = QF_UFLIRA
 DEFAULT_QE_LOGIC = LRA
 DEFAULT_INTERPOLATION_LOGIC = QF_UFLRA
@@ -267,6 +269,18 @@ class Factory(object):
             pass
 
         try:
+            from pysmt.solvers.bitwuzla import BitwuzlaSolver
+            installed_solvers['bitwuzla'] = BitwuzlaSolver
+        except SolverAPINotFound:
+            pass
+
+        try:
+            from pysmt.solvers.smtinterpol import SMTInterpolSolver
+            installed_solvers['smtinterpol'] = SMTInterpolSolver
+        except SolverAPINotFound:
+            pass
+
+        try:
             from pysmt.solvers.cvcfour import CVC4Solver
             installed_solvers['cvc4'] = CVC4Solver
         except SolverAPINotFound:
@@ -380,6 +394,24 @@ class Factory(object):
             MSATLibLoader("optimathsat")
             from pysmt.optimization.optimsat import OptiMSATInterpolator
             self._all_interpolators['optimsat'] = OptiMSATInterpolator
+        except SolverAPINotFound:
+            pass
+
+        try:
+            from pysmt.solvers.cvcfive import CVC5Interpolator
+            self._all_interpolators['cvc5'] = CVC5Interpolator
+        except SolverAPINotFound:
+            pass
+
+        try:
+            from pysmt.solvers.bitwuzla import BitwuzlaInterpolator
+            self._all_interpolators['bitwuzla'] = BitwuzlaInterpolator
+        except SolverAPINotFound:
+            pass
+
+        try:
+            from pysmt.solvers.smtinterpol import SMTInterpolInterpolator
+            self._all_interpolators['smtinterpol'] = SMTInterpolInterpolator
         except SolverAPINotFound:
             pass
 

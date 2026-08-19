@@ -15,6 +15,8 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 #
+import gc
+import weakref
 from io import StringIO
 
 import pysmt.logics as logics
@@ -607,6 +609,55 @@ class TestRegressions(TestCase):
         self.assertEqual(len(result), 2, result)
         self.assertIn(atom, result)
         self.assertIn(Not(atom), result)
+
+    @skipIfSolverNotAvailable("cvc5")
+    def test_cvc5_exit_releases_the_native_context(self):
+        """Exiting must release the native objects, not defer them to the GC.
+
+        The converter keeps bound methods of its own, so it is part of a
+        reference cycle, and it holds native Terms. Left to cyclic collection
+        those Terms can outlive the Solver that owns them, and freeing one
+        afterwards crashes inside the bindings.
+        """
+        x = Symbol("cvc5_lifecycle_x", INT)
+        solver = Solver(name="cvc5", logic=logics.QF_LIA)
+        solver.add_assertion(Equals(x, Int(1)))
+        self.assertTrue(solver.solve())
+
+        solver_ref = weakref.ref(solver)
+        converter_ref = weakref.ref(solver.converter)
+        solver.exit()
+
+        self.assertTrue(solver._destroyed)
+        self.assertFalse(hasattr(solver, "converter"))
+        self.assertFalse(hasattr(solver, "cvc5_solver"))
+
+        del solver
+        gc.collect()
+        self.assertIsNone(converter_ref())
+        self.assertIsNone(solver_ref())
+
+    @skipIfSolverNotAvailable("bitwuzla")
+    def test_bitwuzla_exit_releases_cached_terms(self):
+        """Exiting must release the native terms, not keep them alive.
+
+        The solver memoizes one native term per pySMT node it converts, so
+        the cache pins the whole query. SmtLibIgnoreMixin.exit() shadows
+        Solver.exit() through the MRO, and while it did, nothing released
+        them at all.
+        """
+        array = Symbol("bitwuzla_lifecycle_a",
+                       ArrayType(BVType(4), BVType(8)))
+        index = Symbol("bitwuzla_lifecycle_i", BVType(4))
+        solver = Solver(name="bitwuzla", logic=logics.QF_ABV)
+        solver.add_assertion(Equals(Select(array, index), BV(3, 8)))
+        self.assertTrue(solver.solve())
+        self.assertTrue(solver._term_cache)
+
+        solver.exit()
+        self.assertTrue(solver._destroyed)
+        self.assertFalse(solver._term_cache)
+        self.assertFalse(hasattr(solver, "converter"))
 
 
 if __name__ == "__main__":
