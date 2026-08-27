@@ -698,7 +698,25 @@ class SmtLibParser(object):
                         res = mgr.Real(frac)
 
                 except ValueError:
-                    # a string constant
+                    # Not a numeral. Under a logic that has the string theory
+                    # this is still meant as a string constant. Under any other
+                    # logic it can only be a symbol that was never declared,
+                    # and silently turning it into a String pushes the failure
+                    # into the enclosing operator, where it surfaces as a type
+                    # error naming a term that looks nothing like the cause:
+                    #   PysmtTypeError: The formula '(".litaux.3" <= ".litaux.3")'
+                    #                   is not well-formed
+                    # Native solvers reach this path whenever they answer with
+                    # auxiliary symbols of their own making -- SMTInterpol's
+                    # `.litaux.N` come back inside interpolants -- so the error
+                    # has to name the symbol that is missing, not the term that
+                    # happens to contain it.
+                    if self.logic is not None and not self.logic.theory.strings:
+                        raise PysmtSyntaxError(
+                            "Undeclared symbol '%s' (logic %s has no string "
+                            "theory, so this cannot be a string constant)"
+                            % (token, self.logic.name)
+                        )
                     res = mgr.String(token)
             self.cache.bind(token, res)
         return res

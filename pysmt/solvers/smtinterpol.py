@@ -33,6 +33,7 @@ from pysmt.environment import Environment
 from pysmt.exceptions import (SolverReturnedUnknownResultError,
                               InternalSolverError,
                               ConvertExpressionError,
+                              PysmtSyntaxError,
                               PysmtValueError,
                               SolverAPINotFound,
                               UnsupportedOperatorError)
@@ -614,17 +615,46 @@ class SMTInterpolInterpolator(Interpolator):
                 "Output: %s"
                 % (len(terms), expected, completed.stdout[:4000])
             )
-        return [
-            term_to_pysmt(
-                term,
-                logic,
-                declarations,
-                self.environment,
-                symbols,
-                symbol_map,
-            )
-            for term in terms
-        ]
+        try:
+            return [
+                term_to_pysmt(
+                    term,
+                    logic,
+                    declarations,
+                    self.environment,
+                    symbols,
+                    symbol_map,
+                )
+                for term in terms
+            ]
+        except PysmtSyntaxError as ex:
+            # SMTInterpol can answer with symbols it invented itself. Its
+            # common-subexpression names (`.cseN`) are bound by the `let` that
+            # introduces them and read back fine; the auxiliary literals its
+            # proof machinery creates for mixed literals (`.litaux.N`) do not
+            # -- they arrive free, and were never declared to us.
+            #
+            # Such an answer cannot be repaired here, and it is worth being
+            # precise about why, because "declare them and move on" is the
+            # tempting fix. Checked on an instance where it happens
+            # (QF_LRA lustre/SYNAPSE_3_e7_425, IMC at k=2), with A and B the
+            # two named partitions we sent and I the returned term:
+            #
+            #   as returned    A => I  no    I /\ B unsat  no
+            #   exists-closed  A => I  YES   I /\ B unsat  no
+            #   forall-closed  A => I  no    I /\ B unsat  YES
+            #
+            # Neither closure is an interpolant, so no reading of the free
+            # auxiliary recovers one. The honest outcome is therefore the same
+            # one an unsupported logic gets -- the query is undecided -- and
+            # `InternalSolverError` is what the engines already treat that way.
+            # Before this, the undeclared symbol became a String constant deep
+            # inside the parser and the run died on an unrelated-looking type
+            # error.
+            raise InternalSolverError(
+                "SMTInterpol returned an interpolant mentioning symbols it did "
+                "not declare, so it cannot be read back: %s" % ex
+            ) from ex
 
     def binary_interpolant(self, a: FNode, b: FNode):
         interpolants = self._interpolate([a, b])
