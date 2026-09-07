@@ -36,6 +36,7 @@ from pysmt.logics import (PYSMT_LOGICS, AUFLIRA, AUFLIA, AUFNIRA, ALIA,
                           QF_UFLRA)
 from pysmt.oracles import get_logic
 
+from pysmt.decorators import clear_pending_pop
 from pysmt.solvers.solver import Solver, Converter, SolverOptions
 from pysmt.exceptions import (SolverReturnedUnknownResultError,
                               InternalSolverError,
@@ -168,12 +169,15 @@ class CVC5Solver(SmtLibBasicSolver):
             self._array_expander,
         )
 
+    @clear_pending_pop
     def reset_assertions(self):
         self.cvc5_solver.resetAssertions()
 
+    @clear_pending_pop
     def declare_variable(self, var):
         raise NotImplementedError
 
+    @clear_pending_pop
     def add_assertion(self, formula: FNode, named: Optional[str]=None):
         self._assert_is_boolean(formula)
         term = self.converter.convert(self._expand_arrays(formula))
@@ -188,6 +192,7 @@ class CVC5Solver(SmtLibBasicSolver):
                 assignment[s] = v
         return EagerModel(assignment=assignment, environment=self.environment)
 
+    @clear_pending_pop
     def solve(self, assumptions: Optional[Iterable[FNode]]=None) -> bool:
         if assumptions is not None:
             cvc5_assumptions = [
@@ -207,6 +212,7 @@ class CVC5Solver(SmtLibBasicSolver):
         else:
             return res.isSat()
 
+    @clear_pending_pop
     def push(self, levels=1):
         if not self.options.incremental:
             # The exceptions from CVC5 are not raised correctly
@@ -218,6 +224,7 @@ class CVC5Solver(SmtLibBasicSolver):
             self.cvc5_solver.push()
         return
 
+    @clear_pending_pop
     def pop(self, levels=1):
         for _ in range(levels):
             self.cvc5_solver.pop()
