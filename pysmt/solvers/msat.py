@@ -996,6 +996,36 @@ class MSatConverter(Converter, DagWalker):
                 res = self._msat_lib.msat_make_times(self.msat_env(), res, x)
         return res
 
+    def walk_div(self, formula: FNode, args: List[Any], **kwargs) -> Any:
+        """Convert ``DIV``, which MathSAT spells differently per sort.
+
+        Reals divide directly.  Integers do not: ``msat_make_divide`` is real
+        division, whereas SMT-LIB ``(div m n)`` is Euclidean, so the quotient
+        has to be floored -- towards -inf for a positive divisor and towards
+        +inf for a negative one, which is ``-floor(m / -n)``.  MathSAT only
+        admits division by a constant (anything else is non-linear), so a
+        symbolic divisor is refused rather than silently mis-encoded.
+        """
+        env = self.msat_env()
+        num, den = args[0], args[1]
+        if formula.arg(1).get_type().is_real_type():
+            return self._msat_lib.msat_make_divide(env, num, den)
+
+        if not self._msat_lib.msat_term_is_number(env, den):
+            raise NonLinearError(formula)
+
+        den_val = Fraction(self._msat_lib.msat_term_repr(den))
+        if den_val == 0:
+            raise ConvertExpressionError("division by zero in %s" % formula)
+        if den_val > 0:
+            return self._msat_lib.msat_make_floor(
+                env, self._msat_lib.msat_make_divide(env, num, den))
+        neg_den = self._msat_lib.msat_make_number(env, str(-den_val))
+        floored = self._msat_lib.msat_make_floor(
+            env, self._msat_lib.msat_make_divide(env, num, neg_den))
+        n_one = self._msat_lib.msat_make_number(env, "-1")
+        return self._msat_lib.msat_make_times(env, n_one, floored)
+
     def walk_function(self, formula: FNode, args: List[Any], **kwargs) -> Any:
         name = formula.function_name()
         if name not in self.symbol_to_decl:
