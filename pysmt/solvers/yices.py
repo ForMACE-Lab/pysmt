@@ -30,6 +30,14 @@ try:
     import yices_api # type: ignore[import]
 except ImportError:
     raise SolverAPINotFound
+except Exception as ex:
+    # yices_api loads libyices while it is imported and raises its own
+    # YicesAPIException, not ImportError, when the library cannot be found.
+    # That is the same situation -- the solver is not installed -- and must
+    # not take solver discovery for every other backend down with it.
+    if type(ex).__name__ != "YicesAPIException":
+        raise
+    raise SolverAPINotFound
 
 
 from pysmt.solvers.solver import Solver, Converter, SolverOptions
