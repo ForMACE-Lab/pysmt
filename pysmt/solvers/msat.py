@@ -440,6 +440,7 @@ class MSatConverter(Converter, DagWalker):
             self._msat_lib.MSAT_TAG_BV_ROL: self._back_bv_rol,
             self._msat_lib.MSAT_TAG_BV_ROR: self._back_bv_ror,
             self._msat_lib.MSAT_TAG_ARRAY_CONST: self._back_array_const,
+            self._msat_lib.MSAT_TAG_INT_MOD_CONGR: self._back_int_mod_congr,
             # Symbols, Constants and UFs have TAG_UNKNOWN
             self._msat_lib.MSAT_TAG_UNKNOWN: self._back_tag_unknown,
         }
@@ -493,6 +494,8 @@ class MSatConverter(Converter, DagWalker):
             self._msat_lib.MSAT_TAG_ARRAY_READ: self._sig_array_read,
             self._msat_lib.MSAT_TAG_ARRAY_WRITE: self._sig_array_write,
             self._msat_lib.MSAT_TAG_ARRAY_CONST: self._sig_array_const,
+            self._msat_lib.MSAT_TAG_INT_MOD_CONGR: lambda term, args:\
+                types.FunctionType(types.BOOL, [types.INT, types.INT]),
             ## Symbols, Constants and UFs have TAG_UNKNOWN
             self._msat_lib.MSAT_TAG_UNKNOWN: self._sig_unknown,
         }
@@ -677,6 +680,24 @@ class MSatConverter(Converter, DagWalker):
         is_ror, amount = self._msat_lib.msat_term_is_bv_ror(self.msat_env(), term)
         assert is_ror
         return self.mgr.BVRor(args[0], amount)
+
+    def _back_int_mod_congr(self, term: Any, args: List[FNode]) -> FNode:
+        """``(int_mod_congr_k a b)``: ``a`` and ``b`` are congruent modulo ``k``.
+
+        MathSAT puts such congruences into LIA interpolants.  pySMT has no
+        modulo operator, so the congruence is written the way SMT-LIB defines
+        ``mod`` over the integers: ``k`` divides ``a - b`` exactly when
+        ``(a - b) - k * ((a - b) div k) = 0``.  ``k`` is a constant, so the
+        ``div`` stays linear.
+        """
+        is_congr, modulus = self._msat_lib.msat_term_is_int_modular_congruence(
+            self.msat_env(), term)
+        assert is_congr, self._msat_lib.msat_term_repr(term)
+        mgr = self.mgr
+        k = mgr.Int(int(modulus))
+        diff = mgr.Minus(args[0], args[1])
+        rem = mgr.Minus(diff, mgr.Times(k, mgr.Div(diff, k)))
+        return mgr.Equals(rem, mgr.Int(0))
 
     def _back_array_const(self, term, args):
         msat_type = self._msat_lib.msat_term_get_type(term)

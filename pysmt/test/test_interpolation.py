@@ -35,6 +35,18 @@ class TestInterpolation(TestCase):
         self._test_binary_interpolant('msat')
 
     @skipIfSolverNotAvailable('msat')
+    def test_binary_interpolant_msat_modular_congruence(self):
+        # MathSAT answers this with a congruence, x = 0 (mod 2), which used
+        # to fail to convert back into pySMT.
+        x, y, z = (Symbol(n, INT) for n in "xyz")
+        a = Equals(x, Times(Int(2), y))
+        b = Equals(x, Plus(Times(Int(2), z), Int(1)))
+        itp = binary_interpolant(a, b, solver_name='msat')
+        self.assertIsNotNone(itp)
+        self.assertValid(Implies(a, itp))
+        self.assertUnsat(And(itp, b))
+
+    @skipIfSolverNotAvailable('msat')
     def test_sequence_interpolant_msat(self):
         self._test_sequence_interpolant('msat')
 
