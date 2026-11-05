@@ -16,6 +16,7 @@
 #   limitations under the License.
 #
 from warnings import warn
+import math
 from fractions import Fraction as pyFraction
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union, cast
 
@@ -441,6 +442,7 @@ class MSatConverter(Converter, DagWalker):
             self._msat_lib.MSAT_TAG_BV_ROR: self._back_bv_ror,
             self._msat_lib.MSAT_TAG_ARRAY_CONST: self._back_array_const,
             self._msat_lib.MSAT_TAG_INT_MOD_CONGR: self._back_int_mod_congr,
+            self._msat_lib.MSAT_TAG_FLOOR: self._back_floor,
             # Symbols, Constants and UFs have TAG_UNKNOWN
             self._msat_lib.MSAT_TAG_UNKNOWN: self._back_tag_unknown,
         }
@@ -496,6 +498,8 @@ class MSatConverter(Converter, DagWalker):
             self._msat_lib.MSAT_TAG_ARRAY_CONST: self._sig_array_const,
             self._msat_lib.MSAT_TAG_INT_MOD_CONGR: lambda term, args:\
                 types.FunctionType(types.BOOL, [types.INT, types.INT]),
+            self._msat_lib.MSAT_TAG_FLOOR: lambda term, args:\
+                types.FunctionType(types.INT, [types.REAL]),
             ## Symbols, Constants and UFs have TAG_UNKNOWN
             self._msat_lib.MSAT_TAG_UNKNOWN: self._sig_unknown,
         }
@@ -698,6 +702,67 @@ class MSatConverter(Converter, DagWalker):
         diff = mgr.Minus(args[0], args[1])
         rem = mgr.Minus(diff, mgr.Times(k, mgr.Div(diff, k)))
         return mgr.Equals(rem, mgr.Int(0))
+
+    def _back_floor(self, term: Any, args: List[FNode]) -> FNode:
+        """``(floor e)``, where ``e`` is linear over integer terms.
+
+        MathSAT puts such terms into LIA interpolants, as
+        ``floor(1/20 * (-1 * k))`` for an integer ``k``.  pySMT has no floor,
+        but over the integers it is a division: with ``L`` the least common
+        denominator of the coefficients, ``floor(e) = (L * e) div L``, since
+        SMT-LIB's ``div`` by a positive number rounds down.  ``L * e`` has
+        integer coefficients, so the result stays linear.
+        """
+        lin = self._integer_linear_combination(
+            self._msat_lib.msat_term_get_arg(term, 0))
+        if lin is None:
+            raise ConvertExpressionError("Unsupported expression:",
+                                         self._msat_lib.msat_term_repr(term))
+        coefficients, constant = lin
+        denominator = 1
+        for c in list(coefficients.values()) + [constant]:
+            denominator = denominator * c.denominator // math.gcd(denominator, c.denominator)
+        mgr = self.mgr
+        summands = [mgr.Times(mgr.Int(int(c * denominator)), self.back_memoization[t])
+                    for t, c in coefficients.items() if c != 0]
+        if constant != 0 or not summands:
+            summands.append(mgr.Int(int(constant * denominator)))
+        numerator = mgr.Plus(summands)
+        if denominator == 1:
+            return numerator
+        return mgr.Div(numerator, mgr.Int(denominator))
+
+    def _integer_linear_combination(self, term: Any):
+        """``term`` as ``sum c_i * t_i + c`` with rational ``c_i, c`` and
+        integer-sorted, already converted ``t_i``; None if it is not one."""
+        lib, env = self._msat_lib, self.msat_env()
+        if lib.msat_term_is_number(env, term):
+            return {}, pyFraction(lib.msat_term_repr(term))
+        if lib.msat_term_is_plus(env, term):
+            coefficients, constant = {}, pyFraction(0)
+            for i in range(lib.msat_term_arity(term)):
+                part = self._integer_linear_combination(lib.msat_term_get_arg(term, i))
+                if part is None:
+                    return None
+                for t, c in part[0].items():
+                    coefficients[t] = coefficients.get(t, pyFraction(0)) + c
+                constant += part[1]
+            return coefficients, constant
+        if lib.msat_term_is_times(env, term) and lib.msat_term_arity(term) == 2:
+            left, right = (lib.msat_term_get_arg(term, i) for i in range(2))
+            if lib.msat_term_is_number(env, right):
+                left, right = right, left
+            if lib.msat_term_is_number(env, left):
+                factor = pyFraction(lib.msat_term_repr(left))
+                part = self._integer_linear_combination(right)
+                if part is None:
+                    return None
+                return ({t: factor * c for t, c in part[0].items()},
+                        factor * part[1])
+        if lib.msat_is_integer_type(env, lib.msat_term_get_type(term)) \
+           and self.back_memoization.get(term) is not None:
+            return {term: pyFraction(1)}, pyFraction(0)
+        return None
 
     def _back_array_const(self, term, args):
         msat_type = self._msat_lib.msat_term_get_type(term)

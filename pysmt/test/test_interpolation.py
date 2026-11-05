@@ -47,6 +47,19 @@ class TestInterpolation(TestCase):
         self.assertUnsat(And(itp, b))
 
     @skipIfSolverNotAvailable('msat')
+    def test_binary_interpolant_msat_floor(self):
+        # MathSAT answers this with x - 20 * floor(x/20) <= 4, whose floor
+        # term used to fail to convert back into pySMT.
+        x, y, z = (Symbol(n, INT) for n in "xyz")
+        a = And(LE(Times(Int(20), y), x), LT(x, Plus(Times(Int(20), y), Int(5))))
+        b = And(LE(Plus(Times(Int(20), z), Int(10)), x),
+                LT(x, Plus(Times(Int(20), z), Int(15))))
+        itp = binary_interpolant(a, b, solver_name='msat')
+        self.assertIsNotNone(itp)
+        self.assertValid(Implies(a, itp))
+        self.assertUnsat(And(itp, b))
+
+    @skipIfSolverNotAvailable('msat')
     def test_sequence_interpolant_msat(self):
         self._test_sequence_interpolant('msat')
 
