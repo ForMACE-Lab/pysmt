@@ -22,7 +22,7 @@ from pysmt.logics import QF_AUFLIA, QF_AUFBV
 from pysmt.typing import ARRAY_INT_INT, ArrayType, INT, REAL, BV8, BOOL
 from pysmt.shortcuts import (Solver,
                              Symbol, Not, Equals, Int, BV, Real, FreshSymbol,
-                             Select, Store, Array, TRUE)
+                             Select, Store, Array, TRUE, FALSE, Iff)
 from pysmt.exceptions import ConvertExpressionError, PysmtTypeError, PysmtValueError
 
 
@@ -145,6 +145,36 @@ class TestArray(TestCase):
 
         with self.assertRaises(PysmtValueError):
             self.assertTrue(ax3.is_constant(value=Real(2)))
+
+    def _array_value_equalities(self):
+        c0 = Array(INT, Int(0))
+
+        def st(a, i, v):
+            return Store(a, Int(i), Int(v))
+
+        return [
+            (Equals(c0, st(c0, 3, 1)), FALSE()),
+            (Equals(st(c0, 3, 1), st(c0, 3, 1)), TRUE()),
+            (Equals(st(c0, 3, 0), c0), TRUE()),
+            (Equals(st(st(c0, 2, 1), 3, 1), st(st(c0, 3, 1), 2, 1)), TRUE()),
+            (Equals(st(c0, 2, 1), st(c0, 3, 1)), FALSE()),
+        ]
+
+    def test_simplify_equals_array_values(self):
+        for formula, expected in self._array_value_equalities():
+            self.assertEqual(formula.simplify(), expected, str(formula))
+        # Left to the solver: different defaults, non-constant contents.
+        c0 = Array(INT, Int(0))
+        x = Symbol("x", INT)
+        for formula in (Equals(c0, Array(INT, Int(1))),
+                        Equals(c0, Store(c0, Int(3), x))):
+            self.assertTrue(formula.simplify().is_equals(), str(formula))
+
+    @skipIfNoSolverForLogic(QF_AUFLIA)
+    def test_simplify_equals_array_values_agrees_with_solver(self):
+        for formula, _ in self._array_value_equalities():
+            self.assertValid(Iff(formula, formula.simplify()),
+                             logic=QF_AUFLIA)
 
     def test_infix(self):
         a = Symbol("a", ARRAY_INT_INT)

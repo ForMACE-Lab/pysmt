@@ -203,6 +203,8 @@ class Simplifier(pysmt.walkers.DagWalker):
         sl = args[0]
         sr = args[1]
 
+        if sl.is_array_value() or sr.is_array_value():
+            return self._equals_array_values(sl, sr)
         if sl.is_constant() and sr.is_constant():
             l = sl.constant_value()
             r = sr.constant_value()
@@ -211,6 +213,30 @@ class Simplifier(pysmt.walkers.DagWalker):
             return self.manager.TRUE()
         else:
             return self.manager.Equals(sl, sr)
+
+    def _equals_array_values(self, sl: FNode, sr: FNode) -> FNode:
+        """Simplify ``sl = sr`` where one side is an array value.
+
+        The constant value of an array value is only its index type, so
+        comparing constant values would make any two arrays over the same
+        index type equal. Two constant array values with the same default are
+        equal iff they agree on every index either assigns a value other than
+        the default. Every other case (different defaults, non-constant
+        contents, arrays of arrays) is left to the solver.
+        """
+        if sl == sr:
+            return self.manager.TRUE()
+        if not (sl.is_array_value() and sr.is_array_value()
+                and sl.is_constant() and sr.is_constant()):
+            return self.manager.Equals(sl, sr)
+        dl = sl.array_value_default()
+        if dl != sr.array_value_default() or dl.get_type().is_array_type():
+            return self.manager.Equals(sl, sr)
+        ml = {i: v for i, v in sl.array_value_assigned_values_map().items()
+              if v != dl}
+        mr = {i: v for i, v in sr.array_value_assigned_values_map().items()
+              if v != dl}
+        return self.manager.Bool(ml == mr)
 
     def walk_ite(self, formula: FNode, args: List[FNode], **kwargs) -> FNode:
         assert len(args) == 3
