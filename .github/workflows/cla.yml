@@ -14,5 +14,14 @@ jobs:
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 #v4.1.1
         with:
           fetch-depth: 0
+      # In this fork the check is informational: CONTRIBUTORS records the
+      # contributor agreement of upstream pySMT, which the fork's own commits
+      # do not go through. The check still runs and its log lists the missing
+      # authors; a failure only shows as a warning instead of failing the job.
       - name: Run Check
+        id: cla
+        continue-on-error: true
         run: ./ci/cla.sh
+      - name: Report missing CONTRIBUTORS entries
+        if: steps.cla.outcome == 'failure'
+        run: echo "::warning title=CONTRIBUTORS::Some commit authors are not in CONTRIBUTORS (see the 'Run Check' step); allowed to fail in this fork."
