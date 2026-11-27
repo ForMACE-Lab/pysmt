@@ -125,7 +125,8 @@ class TestQE(TestCase):
         self._alternation_int_example(qe)
         self._std_examples(qe, LIA)
 
-        self._modular_congruence(qe)
+        # MathSAT's modular congruences are converted back
+        self._modular_congruence(qe, converts=True)
 
         # Additional test for raising error on back conversion of
         # quantified formulae
@@ -136,11 +137,19 @@ class TestQE(TestCase):
         with self.assertRaises(PysmtValueError):
             qe.eliminate_quantifiers(f).simplify()
 
-    def _modular_congruence(self, qe):
+    def _modular_congruence(self, qe, converts=False):
         p, q = (Symbol(n, INT) for n in "pq")
         f = Exists([q], Equals(Times(q, Int(2)), p))
-        with self.assertRaises(ConvertExpressionError):
-            qe.eliminate_quantifiers(f)
+        if not converts:
+            with self.assertRaises(ConvertExpressionError):
+                qe.eliminate_quantifiers(f)
+            return
+        # The eliminator expresses the modulus with integer division:
+        # the result must hold exactly for the even values of p.
+        qf = qe.eliminate_quantifiers(f)
+        for k in range(-4, 5):
+            res = qf.substitute({p: Int(k)}).simplify()
+            self.assertEqual(res.is_true(), k % 2 == 0, (k, qf))
 
 
     def _bool_example(self, qe):

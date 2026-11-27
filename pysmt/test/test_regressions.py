@@ -185,15 +185,18 @@ class TestRegressions(TestCase):
         x = Symbol("x", INT)
         y = Symbol("y", INT)
         f = Exists([x], Equals(y, Times(x, Int(2))))
-        with self.assertRaises(ConvertExpressionError):
-            qelim(f)
-
         try:
-            qelim(f)
+            res = qelim(f)
         except ConvertExpressionError as ex:
             # The modulus operator must be there
             self.assertTrue("%2" in str(ex.expression) or \
                             "int_mod_congr" in str(ex.expression))
+            return
+        # A solver that converts the modulus back (MathSAT, through
+        # integer division) must be right for the even values of y.
+        for k in range(-4, 5):
+            val = res.substitute({y: Int(k)}).simplify()
+            self.assertEqual(val.is_true(), k % 2 == 0, (k, res))
 
     @skipIfSolverNotAvailable("msat")
     def test_msat_partial_model(self):
