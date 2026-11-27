@@ -723,7 +723,8 @@ class MSatConverter(Converter, DagWalker):
         for c in list(coefficients.values()) + [constant]:
             denominator = denominator * c.denominator // math.gcd(denominator, c.denominator)
         mgr = self.mgr
-        summands = [mgr.Times(mgr.Int(int(c * denominator)), self.back_memoization[t])
+        summands = [mgr.Times(mgr.Int(int(c * denominator)),
+                              assert_not_none(self.back_memoization[t]))
                     for t, c in coefficients.items() if c != 0]
         if constant != 0 or not summands:
             summands.append(mgr.Int(int(constant * denominator)))
@@ -732,14 +733,15 @@ class MSatConverter(Converter, DagWalker):
             return numerator
         return mgr.Div(numerator, mgr.Int(denominator))
 
-    def _integer_linear_combination(self, term: Any):
+    def _integer_linear_combination(self, term: Any) -> Optional[Tuple[Dict[Any, pyFraction], pyFraction]]:
         """``term`` as ``sum c_i * t_i + c`` with rational ``c_i, c`` and
         integer-sorted, already converted ``t_i``; None if it is not one."""
         lib, env = self._msat_lib, self.msat_env()
         if lib.msat_term_is_number(env, term):
             return {}, pyFraction(lib.msat_term_repr(term))
         if lib.msat_term_is_plus(env, term):
-            coefficients, constant = {}, pyFraction(0)
+            coefficients: Dict[Any, pyFraction] = {}
+            constant = pyFraction(0)
             for i in range(lib.msat_term_arity(term)):
                 part = self._integer_linear_combination(lib.msat_term_get_arg(term, i))
                 if part is None:
