@@ -97,7 +97,10 @@ class BtorInstaller(SolverInstaller):
         # Build Boolector Solver
         SolverInstaller.run("bash ./configure.sh --python",
                             directory=self.extract_path,
-                            env_variables={"CMAKE_OPTS": CMAKE_OPTS})
+                            env_variables={"CMAKE_OPTS": CMAKE_OPTS,
+                                           # CMake >= 4 rejects the old
+                                           # cmake_minimum_required in Boolector
+                                           "CMAKE_POLICY_VERSION_MINIMUM": "3.5"})
 
         SolverInstaller.run("make -j2",
                             directory=os.path.join(self.extract_path, "build"))
