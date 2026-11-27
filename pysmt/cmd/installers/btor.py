@@ -83,8 +83,11 @@ class BtorInstaller(SolverInstaller):
                                 directory=self.extract_path)
 
         # Build lingeling
+        # GCC >= 14 turns incompatible-pointer-types into an error, which
+        # the old lingeling sources trigger: downgrade it to a warning.
         SolverInstaller.run("bash ./contrib/setup-lingeling.sh",
-                            directory=self.extract_path)
+                            directory=self.extract_path,
+                            env_variables={"CC": "gcc -Wno-error=incompatible-pointer-types"})
 
         # Build Btor
         SolverInstaller.run("bash ./contrib/setup-btor2tools.sh",
