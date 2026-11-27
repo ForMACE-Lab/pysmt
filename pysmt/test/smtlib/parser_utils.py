@@ -69,6 +69,9 @@ def execute_script_fname(smtfile: str, logic: Logic, expected_result: bool):
             if logic == QF_UF and type(solver).__name__ == 'BoolectorSolver':
                 warnings.warn("Test (%s, %s) skipped because Boolector can't handle QF_UF." % (logic, smtfile))
                 return
+            if logic == QF_UF and type(solver).__name__ == 'BitwuzlaSolver':
+                warnings.warn("Test (%s, %s) skipped because Bitwuzla can't handle QF_UF (uninterpreted sorts)." % (logic, smtfile))
+                return
             log = script.evaluate(cast(SmtLibSolver, solver))
     except NoSolverAvailableError:
         raise SkipTest("No solver for logic %s." % logic)
