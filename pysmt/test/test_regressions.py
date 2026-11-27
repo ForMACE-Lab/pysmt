@@ -659,6 +659,23 @@ class TestRegressions(TestCase):
         self.assertFalse(solver._term_cache)
         self.assertFalse(hasattr(solver, "converter"))
 
+    def test_int_div_smtlib_roundtrip(self):
+        # SMT-LIB writes integer division as "div" and real division as "/";
+        # printing "/" over Int is rejected by solvers that parse the output
+        # (e.g. cvc5's SyGuS interpolator).
+        x = Symbol("x", INT)
+        r, q = Symbol("r", REAL), Symbol("q", REAL)
+        f_int = Equals(Div(x, Int(2)), Int(3))
+        f_real = Equals(Div(r, q), Real(3))
+        for daggify in (False, True):
+            self.assertIn("(div x 2)", to_smtlib(f_int, daggify))
+            self.assertIn("(/ r q)", to_smtlib(f_real, daggify))
+        for f in (f_int, f_real):
+            script = ("(declare-fun x () Int)(declare-fun r () Real)"
+                      "(declare-fun q () Real)(assert %s)" % to_smtlib(f, False))
+            parsed = SmtLibParser().get_script(StringIO(script)).get_last_formula()
+            self.assertEqual(parsed, f)
+
 
 if __name__ == "__main__":
     main()

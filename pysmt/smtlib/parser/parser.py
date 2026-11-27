@@ -377,6 +377,7 @@ class SmtLibParser(object):
             '-': self._operator_adapter(self._minus_or_uminus),
             '*': self._operator_adapter(self.Times),
             '/': self._operator_adapter(self._division),
+            'div': self._operator_adapter(mgr.Div),  # Euclidean division over Int
             'pow': self._operator_adapter(mgr.Pow),
             '>': self._operator_adapter(self.GT),
             '<': self._operator_adapter(self.LT),

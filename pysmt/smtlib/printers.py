@@ -94,7 +94,8 @@ class SmtPrinter(TreeWalker):
     def walk_lt(self, formula): return self.walk_nary(formula, "<")
     def walk_ite(self, formula): return self.walk_nary(formula, "ite")
     def walk_toreal(self, formula): return self.walk_nary(formula, "to_real")
-    def walk_div(self, formula): return self.walk_nary(formula, "/")
+    def walk_div(self, formula):  # SMT-LIB: "div" over Int, "/" over Real
+        return self.walk_nary(formula, "div" if self.env.stc.get_type(formula).is_int_type() else "/")
     def walk_pow(self, formula): return self.walk_nary(formula, "pow")
     def walk_bv_and(self, formula): return self.walk_nary(formula, "bvand")
     def walk_bv_or(self, formula): return self.walk_nary(formula, "bvor")
@@ -423,7 +424,9 @@ class SmtDagPrinter(DagWalker):
         return self.walk_nary(formula, args, "to_real")
 
     def walk_div(self, formula: FNode, args: List[str]) -> str:
-        return self.walk_nary(formula, args, "/")
+        # SMT-LIB: "div" over Int, "/" over Real
+        op = "div" if self.env.stc.get_type(formula).is_int_type() else "/"
+        return self.walk_nary(formula, args, op)
 
     def walk_pow(self, formula: FNode, args: List[str]) -> str:
         return self.walk_nary(formula, args, "pow")
