@@ -32,6 +32,7 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     strategy:
+      fail-fast: false
       matrix:
         os: [ ubuntu-latest ]
         pysmt_solver: [ none, msat, z3, yices, cvc5, bitwuzla, btor, picosat, bdd, msat_wrap, z3_wrap, optimsat ]
@@ -64,6 +65,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     if: (github.ref == 'refs/heads/master') || (github.event_name == 'pull_request') # We only run these tests on master or in pull-requests
     strategy:
+      fail-fast: false
       matrix:
         os: [ ubuntu-latest ]
         pysmt_solver: [ none ]
