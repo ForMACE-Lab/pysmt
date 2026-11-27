@@ -45,6 +45,16 @@ class CuddInstaller(SolverInstaller):
             print("WARNING: the BDD solver does not work with Swig4 < 4.0.2. Fallback to Swig3")
             swig = "swig3.0" # This is the Ubuntu naming of the executable
 
+        # The repycudd %exception blocks use "$function", which SWIG >= 4.4
+        # no longer substitutes (it is emitted verbatim into the C++
+        # code). "$action" is the documented name and works in all versions.
+        for fname in ("repycudd.h", "ddmanager.i"):
+            fpath = os.path.join(self.extract_path, fname)
+            with open(fpath) as fin:
+                content = fin.read()
+            with open(fpath, "w") as fout:
+                fout.write(content.replace("$function", "$action"))
+
         import sysconfig
         PYTHON_INCLUDE_DIR = sysconfig.get_path("include")
         SolverInstaller.run("make -C %s -f %s PYTHON_INCL=-I%s SWIG=%s" %
