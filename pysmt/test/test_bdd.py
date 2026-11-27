@@ -26,6 +26,7 @@ class TestBdd(TestCase):
 
     @skipIfSolverNotAvailable("bdd")
     def setUp(self):
+        super().setUp()
         self.x, self.y = Symbol("x"), Symbol("y")
 
         self.bdd_solver = Solver(logic=BOOL,
